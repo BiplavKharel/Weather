@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weather Outfit Planner</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <main class="app">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">Local forecast</p>
+                <h1>Detroit, MI</h1>
+            </div>
+            <div class="unit-toggle" aria-label="Temperature units">
+                <button class="unit-btn active" data-unit="C" type="button">°C</button>
+                <button class="unit-btn" data-unit="F" type="button">°F</button>
+            </div>
+        </header>
+
+        <section class="card weather-card">
+            <div class="weather-summary">
+                <div>
+                    <p id="weatherCondition" class="condition">Loading...</p>
+                    <div class="temp-row">
+                        <span id="tempValue" class="temp">--</span>
+                    </div>
+                    <p id="feelsLike" class="meta">Feels like --</p>
+                </div>
+                <div class="icon-wrap" aria-live="polite">
+                    <span id="weatherIcon" class="weather-icon">☀️</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="card advice-card">
+            <p class="eyebrow">Outfit suggestion</p>
+            <h2 id="outfitTitle">Getting your look ready...</h2>
+            <ul id="outfitList" class="outfit-list">
+                <li>Checking the weather...</li>
+            </ul>
+        </section>
+
+        <button id="refreshButton" class="refresh-btn" type="button">Refresh weather</button>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
