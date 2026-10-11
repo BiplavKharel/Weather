@@ -13,13 +13,22 @@
         <header class="topbar">
             <div>
                 <p class="eyebrow">Local forecast</p>
-                <h1>Detroit, MI</h1>
+                <h1 id="cityName">Detroit, US</h1>
             </div>
             <div class="unit-toggle" aria-label="Temperature units">
                 <button class="unit-btn active" data-unit="C" type="button">°C</button>
                 <button class="unit-btn" data-unit="F" type="button">°F</button>
             </div>
         </header>
+
+        <section class="card city-manager">
+            <p class="eyebrow">Saved cities</p>
+            <div class="city-form">
+                <input id="cityInput" type="text" placeholder="Enter city name" aria-label="City name" />
+                <button id="saveCityButton" class="save-btn" type="button">Save city</button>
+            </div>
+            <ul id="savedCitiesList" class="saved-city-list" aria-live="polite"></ul>
+        </section>
 
         <section class="card weather-card">
             <div class="weather-summary">

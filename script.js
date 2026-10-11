@@ -1,5 +1,5 @@
-const apiUrl =
-  'https://api.open-meteo.com/v1/forecast?latitude=42.33&longitude=-83.05&current=temperature_2m,apparent_temperature,weather_code&timezone=auto';
+const STORAGE_KEY = 'weather-saved-cities';
+const defaultCity = { name: 'Detroit', country: 'US', latitude: 42.33, longitude: -83.05 };
 
 const tempValue = document.getElementById('tempValue');
 const feelsLike = document.getElementById('feelsLike');
@@ -8,10 +8,16 @@ const weatherIcon = document.getElementById('weatherIcon');
 const outfitTitle = document.getElementById('outfitTitle');
 const outfitList = document.getElementById('outfitList');
 const refreshButton = document.getElementById('refreshButton');
+const cityName = document.getElementById('cityName');
+const cityInput = document.getElementById('cityInput');
+const saveCityButton = document.getElementById('saveCityButton');
+const savedCitiesList = document.getElementById('savedCitiesList');
 const unitButtons = document.querySelectorAll('.unit-btn');
 
 let currentTempC = 0;
 let currentUnit = 'C';
+let savedCities = loadSavedCities();
+let currentCity = savedCities[0] || defaultCity;
 
 const weatherCodeMap = {
   0: { label: 'Clear sky', icon: '☀️' },
@@ -43,6 +49,49 @@ const weatherCodeMap = {
   96: { label: 'Thunderstorm with hail', icon: '⛈️' },
   99: { label: 'Severe thunderstorm', icon: '⛈️' },
 };
+
+function loadSavedCities() {
+  try {
+    const storedCities = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    return Array.isArray(storedCities) ? storedCities : [];
+  } catch (error) {
+    console.error('Could not load saved cities:', error);
+    return [];
+  }
+}
+
+function saveCities() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(savedCities));
+}
+
+function formatCityLabel(city) {
+  return city.country ? `${city.name}, ${city.country}` : city.name;
+}
+
+function setCurrentCity(city) {
+  currentCity = city;
+  cityName.textContent = formatCityLabel(city);
+}
+
+function renderSavedCities() {
+  if (!savedCities.length) {
+    savedCitiesList.innerHTML = '<li><span class="meta">No cities saved yet.</span></li>';
+    return;
+  }
+
+  savedCitiesList.innerHTML = savedCities
+    .map(
+      (city) => `
+        <li>
+          <button class="saved-city-btn ${city.name === currentCity.name && city.country === currentCity.country ? 'active' : ''}" data-city-name="${city.name}" data-city-country="${city.country || ''}" type="button">
+            ${formatCityLabel(city)}
+          </button>
+          <button class="remove-city-btn" data-remove-city="${city.name}" data-remove-country="${city.country || ''}" type="button" aria-label="Remove ${formatCityLabel(city)}">×</button>
+        </li>
+      `,
+    )
+    .join('');
+}
 
 function celsiusToFahrenheit(value) {
   return (value * 9) / 5 + 32;
@@ -141,13 +190,41 @@ function renderWeather(data) {
   outfitList.innerHTML = advice.items.map((item) => `<li>${item}</li>`).join('');
 }
 
-async function fetchWeather() {
+async function geocodeCity(cityNameInput) {
+  const encodedCity = encodeURIComponent(cityNameInput.trim());
+  const geocodeUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodedCity}&count=1&language=en&format=json`;
+
+  const response = await fetch(geocodeUrl);
+
+  if (!response.ok) {
+    throw new Error('City lookup failed');
+  }
+
+  const data = await response.json();
+
+  if (!data.results || !data.results.length) {
+    throw new Error('City not found');
+  }
+
+  const location = data.results[0];
+  return {
+    name: location.name,
+    country: location.country || location.admin1 || 'Unknown',
+    latitude: location.latitude,
+    longitude: location.longitude,
+  };
+}
+
+async function fetchWeatherForCity(city) {
+  const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${city.latitude}&longitude=${city.longitude}&current=temperature_2m,apparent_temperature,weather_code&timezone=auto`;
+
   try {
     conditionText.textContent = 'Loading...';
     tempValue.textContent = '--';
     feelsLike.textContent = 'Feels like --';
+    setCurrentCity(city);
 
-    const response = await fetch(apiUrl);
+    const response = await fetch(forecastUrl);
 
     if (!response.ok) {
       throw new Error('Weather request failed');
@@ -161,6 +238,40 @@ async function fetchWeather() {
     feelsLike.textContent = 'Please try again later';
     outfitTitle.textContent = 'No outfit advice available';
     outfitList.innerHTML = '<li>Check your internet connection and refresh.</li>';
+    weatherIcon.textContent = '⚠️';
+    console.error(error);
+  }
+}
+
+async function saveCity() {
+  const cityText = cityInput.value.trim();
+
+  if (!cityText) {
+    return;
+  }
+
+  try {
+    const city = await geocodeCity(cityText);
+
+    const existingCity = savedCities.find(
+      (savedCity) => savedCity.name.toLowerCase() === city.name.toLowerCase() && (savedCity.country || '').toLowerCase() === city.country.toLowerCase(),
+    );
+
+    if (!existingCity) {
+      savedCities.push(city);
+      saveCities();
+    }
+
+    renderSavedCities();
+    setCurrentCity(city);
+    cityInput.value = '';
+    await fetchWeatherForCity(city);
+  } catch (error) {
+    conditionText.textContent = 'City not found';
+    tempValue.textContent = '—';
+    feelsLike.textContent = 'Try another city';
+    outfitTitle.textContent = 'No outfit advice available';
+    outfitList.innerHTML = '<li>Check the city name and try again.</li>';
     weatherIcon.textContent = '⚠️';
     console.error(error);
   }
@@ -185,6 +296,53 @@ unitButtons.forEach((button) => {
   });
 });
 
-refreshButton.addEventListener('click', fetchWeather);
+saveCityButton.addEventListener('click', saveCity);
+cityInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    saveCity();
+  }
+});
 
-fetchWeather();
+savedCitiesList.addEventListener('click', async (event) => {
+  const cityButton = event.target.closest('.saved-city-btn');
+  if (cityButton) {
+    const selectedCity = savedCities.find(
+      (city) => city.name === cityButton.dataset.cityName && (city.country || '') === cityButton.dataset.cityCountry,
+    );
+
+    if (selectedCity) {
+      setCurrentCity(selectedCity);
+      renderSavedCities();
+      await fetchWeatherForCity(selectedCity);
+    }
+    return;
+  }
+
+  const removeButton = event.target.closest('.remove-city-btn');
+  if (removeButton) {
+    const cityNameValue = removeButton.dataset.removeCity;
+    const cityCountryValue = removeButton.dataset.removeCountry;
+
+    savedCities = savedCities.filter(
+      (city) => !(city.name === cityNameValue && (city.country || '') === cityCountryValue),
+    );
+    saveCities();
+    renderSavedCities();
+
+    if (savedCities.length) {
+      const firstCity = savedCities[0];
+      setCurrentCity(firstCity);
+      fetchWeatherForCity(firstCity);
+      return;
+    }
+
+    setCurrentCity(defaultCity);
+    fetchWeatherForCity(defaultCity);
+  }
+});
+
+refreshButton.addEventListener('click', () => fetchWeatherForCity(currentCity));
+
+setCurrentCity(currentCity);
+renderSavedCities();
+fetchWeatherForCity(currentCity);
